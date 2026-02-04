@@ -1,0 +1,30 @@
+# ---- Build directories ----
+build/
+build-*/
+cmake-build-*/
+csv_util/
+olympus/
+
+# ---- CMake generated files ----
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# ---- macOS ----
+.DS_Store
+
+# ---- Executables ----
+cbir
+*.out
+*.exe
+
+# ---- Object files ----
+*.o
+*.obj
+
+# ---- Libraries ----
+*.a
+*.so
+*.dylib
