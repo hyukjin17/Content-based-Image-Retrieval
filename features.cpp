@@ -10,7 +10,7 @@
 #include <cstdlib>
 #include <fstream>
 #include "opencv2/opencv.hpp"
-#include "csv_util/csv_util.h"
+#include "csv_util.h"
 
 int extract_features(char *image_filename, cv::Mat &src, char *csv, int reset_file) {
     // find the center of image
