@@ -28,3 +28,6 @@ cbir
 *.a
 *.so
 *.dylib
+
+# ---- CSV files ----
+*.csv
