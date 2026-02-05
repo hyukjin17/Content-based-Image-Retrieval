@@ -1,4 +1,10 @@
 /*
+  Hyuk Jin Chung
+  2/5/26
+
+  Modified code to read the images and build a feature vector for each image
+
+
   Bruce A. Maxwell
   S21
 
@@ -7,7 +13,10 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
+#include <fstream>
 #include <dirent.h>
+#include "opencv2/opencv.hpp"
+#include "features.hpp"
 
 /*
   Given a directory on the command line, scans through the directory for image files.
@@ -18,10 +27,9 @@ int main(int argc, char *argv[])
 {
   char dirname[256];
   char buffer[256];
-  FILE *fp;
   DIR *dirp;
   struct dirent *dp;
-  int i;
+  cv::Mat src;
 
   // check for sufficient arguments
   if (argc < 2)
@@ -42,6 +50,10 @@ int main(int argc, char *argv[])
     exit(-1);
   }
 
+  //std::ofstream baseline("features_baseline.csv");
+  char baseline[] = "features_baseline.csv";
+  int reset_file = 1;
+
   // loop over all the files in the image file listing
   while ((dp = readdir(dirp)) != NULL)
   {
@@ -60,7 +72,9 @@ int main(int argc, char *argv[])
       strcat(buffer, "/");
       strcat(buffer, dp->d_name);
 
-      printf("full path name: %s\n", buffer);
+      src = cv::imread(buffer);
+      extract_features(dp->d_name, src, baseline, reset_file);
+      reset_file = 0;
     }
   }
 
