@@ -34,6 +34,7 @@ int main(int argc, char *argv[])
   std::vector<float> featVec; // flattened feature vector
   char baseline[] = "features_baseline.csv";
   char hist[] = "features_histogram.csv";
+  char hist2[] = "features_histogram_rgb.csv";
 
   // check for sufficient arguments
   if (argc < 2)
@@ -81,9 +82,15 @@ int main(int argc, char *argv[])
       append_image_data_csv(baseline, dp->d_name, featVec, reset_file);
       featVec.clear(); // clear the vector before reusing it
 
-      // extract the histogram data into a csv file
+      // extract the rg chromaticity histogram data into a csv file
       extract_histogram_features(src, featVec);
       append_image_data_csv(hist, dp->d_name, featVec, reset_file);
+      featVec.clear();
+
+      // extract the rgb histogram data into a csv file
+      extract_histogram_rgb_features(src, featVec);
+      append_image_data_csv(hist2, dp->d_name, featVec, reset_file);
+
       reset_file = 0; // append to the file after writing the first line
     }
   }

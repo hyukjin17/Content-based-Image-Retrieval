@@ -13,18 +13,18 @@
 #include "features.hpp"
 #include "csv_util.h"
 
-// Calculates the histogram intersection distance betweeen the 2 vectors
-// Returns a float: sum of min(a[i], b[i])
+// Calculates the histogram intersection distance betweeen the 2 vectors (normalized histogram)
+// Returns a float: 1 - sum of min(a[i], b[i])
 float hist_intersection(std::vector<float> &featVec, std::vector<float> &data)
 {
-    float dist = 0;
+    float sum = 0;
 
     for (int i = 0; i < featVec.size(); i++)
     {
-        dist += std::min(featVec[i], data[i]);
+        sum += std::min(featVec[i], data[i]);
     }
 
-    return dist;
+    return 1.0f - sum;
 }
 
 // Calculates the sum squared distance betweeen the 2 vectors
@@ -52,16 +52,16 @@ float apply_metric(int metric, std::vector<float> &featVec, std::vector<float> &
     switch (metric)
     {
     case 1:
-        dist = ssd(featVec, data[i]);
+        dist = ssd(featVec, data);
         break;
     case 2:
-        dist = hist_intersection(featVec, data[i]);
+        dist = hist_intersection(featVec, data);
         break;
     default:
-        dist = ssd(featVec, data[i]);
+        dist = ssd(featVec, data);
     }
 
-    return res;
+    return dist;
 }
 
 /*
@@ -131,9 +131,15 @@ int set_comp_method(char *comp_method, char *csv, cv::Mat &src, std::vector<floa
         extract_histogram_features(src, featVec);
         dist_metric = 2;
     }
+    else if (strcmp(comp_method, "hist2") == 0)
+    {
+        strcpy(csv, "features_histogram_rgb.csv");
+        extract_histogram_rgb_features(src, featVec);
+        dist_metric = 2;
+    }
     else
     {
-        printf("Invalid comparison method\nPlease use one of: baseline, hist, multihist, texture, dnn\n");
+        printf("Invalid comparison method\nPlease use one of: baseline, hist, hist2, multihist, texture, dnn\n");
         exit(-1);
     }
 
