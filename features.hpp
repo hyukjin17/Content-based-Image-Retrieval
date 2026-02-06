@@ -4,4 +4,14 @@
     Function signatures for feature extraction functions
 */
 
-int extract_features(char *image_filename, cv::Mat &src, char *csv, int reset_file);
+#ifndef FEATURES_H
+#define FEATURES_H
+
+// Using the 7x7 square in the middle of the image, builds a feature vector of RGB colors (7x7 image x 3 channels)
+// Args: src     - cv::Mat image
+//       featVec - feature vector to be filled
+void extract_baseline_features(cv::Mat &src, std::vector<float> &featVec);
+
+void extract_histogram_features(cv::Mat &src, std::vector<float> &featVec);
+
+#endif
