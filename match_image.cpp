@@ -13,6 +13,20 @@
 #include "features.hpp"
 #include "csv_util.h"
 
+// Calculates the histogram intersection distance betweeen the 2 vectors
+// Returns a float: sum of min(a[i], b[i])
+float hist_intersection(std::vector<float> &featVec, std::vector<float> &data)
+{
+    float dist = 0;
+
+    for (int i = 0; i < featVec.size(); i++)
+    {
+        dist += std::min(featVec[i], data[i]);
+    }
+
+    return dist;
+}
+
 // Calculates the sum squared distance betweeen the 2 vectors
 // Returns a float: sum of (a[i] - b[i])^2
 float ssd(std::vector<float> &featVec, std::vector<float> &data)
@@ -29,11 +43,32 @@ float ssd(std::vector<float> &featVec, std::vector<float> &data)
     return dist;
 }
 
+// Applies the chosen distance metric to calculate the distance between 2 feature vectors
+// Returns the distance as a float
+float apply_metric(int metric, std::vector<float> &featVec, std::vector<float> &data)
+{
+    float dist;
+
+    switch (metric)
+    {
+    case 1:
+        dist = ssd(featVec, data[i]);
+        break;
+    case 2:
+        dist = hist_intersection(featVec, data[i]);
+        break;
+    default:
+        dist = ssd(featVec, data[i]);
+    }
+
+    return res;
+}
+
 /*
     Extracts the feature vectors from the csv database and compares every entry to the given feature vector
     Distance metric is chosen based on metric value
     Prints out N closest matches
-    
+
     Args:
         - csv: csv database filename
         - featVec: feature vector to be filled
@@ -55,7 +90,7 @@ void print_closest_match(char *csv, std::vector<float> &featVec, int metric, int
 
     for (int i = 0; i < filenames.size(); i++)
     {
-        distance = ssd(featVec, data[i]);
+        distance = apply_metric(metric, featVec, data[i]);
         results.push_back({distance, filenames[i]});
     }
     // sort the results by ascending distance
@@ -70,7 +105,7 @@ void print_closest_match(char *csv, std::vector<float> &featVec, int metric, int
 
 /*
     Based on user defined comparison method, extracts the feature vector from the image
-    and returns an integer value corresponding to a method
+    and returns an integer value corresponding to a distance metric
 
     Args:
         - comp_method: user defined comparison method as a string
@@ -80,7 +115,7 @@ void print_closest_match(char *csv, std::vector<float> &featVec, int metric, int
 */
 int set_comp_method(char *comp_method, char *csv, cv::Mat &src, std::vector<float> &featVec)
 {
-    int result;
+    int dist_metric;
 
     // find the csv filename based on the requested comparison method
     // and extract the feature vector from the image
@@ -88,13 +123,13 @@ int set_comp_method(char *comp_method, char *csv, cv::Mat &src, std::vector<floa
     {
         strcpy(csv, "features_baseline.csv");
         extract_baseline_features(src, featVec);
-        result = 1;
+        dist_metric = 1;
     }
     else if (strcmp(comp_method, "hist") == 0)
     {
         strcpy(csv, "features_histogram.csv");
         extract_histogram_features(src, featVec);
-        result = 2;
+        dist_metric = 2;
     }
     else
     {
@@ -102,7 +137,7 @@ int set_comp_method(char *comp_method, char *csv, cv::Mat &src, std::vector<floa
         exit(-1);
     }
 
-    return result;
+    return dist_metric;
 }
 
 /*
