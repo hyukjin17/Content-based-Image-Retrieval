@@ -17,6 +17,7 @@
 #include <dirent.h>
 #include "opencv2/opencv.hpp"
 #include "features.hpp"
+#include "csv_util.h"
 
 /*
   Given a directory on the command line, scans through the directory for image files.
@@ -30,6 +31,9 @@ int main(int argc, char *argv[])
   DIR *dirp;
   struct dirent *dp;
   cv::Mat src;
+  std::vector<float> featVec; // flattened feature vector
+  char baseline[] = "features_baseline.csv";
+  char hist[] = "features_histogram.csv";
 
   // check for sufficient arguments
   if (argc < 2)
@@ -50,31 +54,37 @@ int main(int argc, char *argv[])
     exit(-1);
   }
 
-  //std::ofstream baseline("features_baseline.csv");
-  char baseline[] = "features_baseline.csv";
-  int reset_file = 1;
+  int reset_file = 1; // resets the files initially to clear them before writing to them
 
   // loop over all the files in the image file listing
   while ((dp = readdir(dirp)) != NULL)
   {
 
     // check if the file is an image
-    if (strstr(dp->d_name, ".jpg") ||
-        strstr(dp->d_name, ".png") ||
-        strstr(dp->d_name, ".ppm") ||
-        strstr(dp->d_name, ".tif"))
+    if (strstr(dp->d_name, ".jpg") || strstr(dp->d_name, ".png") || strstr(dp->d_name, ".ppm") || strstr(dp->d_name, ".tif"))
     {
-
-      printf("processing image file: %s\n", dp->d_name);
+      printf("Processing image file: %s\n", dp->d_name);
 
       // build the overall filename
       strcpy(buffer, dirname);
       strcat(buffer, "/");
       strcat(buffer, dp->d_name);
 
+      // read the image
       src = cv::imread(buffer);
-      extract_features(dp->d_name, src, baseline, reset_file);
-      reset_file = 0;
+      if (src.empty())
+        continue;
+
+      // extract the baseline features (7x7 square) into a csv file
+      extract_baseline_features(src, featVec);
+      // appends the image filename and feature vector into the csv
+      append_image_data_csv(baseline, dp->d_name, featVec, reset_file);
+      featVec.clear(); // clear the vector before reusing it
+
+      // extract the histogram data into a csv file
+      extract_histogram_features(src, featVec);
+      append_image_data_csv(hist, dp->d_name, featVec, reset_file);
+      reset_file = 0; // append to the file after writing the first line
     }
   }
 
