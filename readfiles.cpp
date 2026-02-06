@@ -37,10 +37,13 @@ void extract_feature_to_csv(cv::Mat &src, char *img_filename,
   char baseline[] = "features_baseline.csv";
   char hist[] = "features_histogram.csv";
   char hist2[] = "features_histogram_rgb.csv";
+  char multihist[] = "features_multihistogram.csv";
 
   bool do_baseline = (strcmp(feature_mode, "baseline") == 0 || strcmp(feature_mode, "all") == 0);
   bool do_hist = (strcmp(feature_mode, "hist") == 0 || strcmp(feature_mode, "all") == 0);
   bool do_hist_rgb = (strcmp(feature_mode, "hist2") == 0 || strcmp(feature_mode, "all") == 0);
+  bool do_multihist = (strcmp(feature_mode, "multihist") == 0 || strcmp(feature_mode, "all") == 0);
+
   bool do_nothing = true;
 
   if (do_baseline)
@@ -65,6 +68,14 @@ void extract_feature_to_csv(cv::Mat &src, char *img_filename,
     // extract the rgb histogram data into a csv file
     extract_histogram_rgb_features(src, featVec);
     append_image_data_csv(hist2, img_filename, featVec, reset_file);
+    featVec.clear(); // clear the feature vector before reusing it
+    do_nothing = false;
+  }
+  if (do_multihist)
+  {
+    // extract the multi-histogram data into a csv file
+    extract_multihist_features(src, featVec);
+    append_image_data_csv(multihist, img_filename, featVec, reset_file);
     featVec.clear(); // clear the feature vector before reusing it
     do_nothing = false;
   }

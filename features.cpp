@@ -68,8 +68,8 @@ void extract_histogram_features(cv::Mat &src, std::vector<float> &featVec)
 
             // compute the index for r and g
             // r and g are in [0, 1]
-            int rindex = (int)(r * (histsize - 1) + 0.5);
-            int gindex = (int)(g * (histsize - 1) + 0.5);
+            int rindex = std::min((int)std::floor(r * histsize), histsize - 1);
+            int gindex = std::min((int)std::floor(g * histsize), histsize - 1);
 
             // increment the histogram
             hist.at<float>(rindex, gindex)++;
@@ -140,4 +140,25 @@ void extract_histogram_rgb_features(cv::Mat &src, std::vector<float> &featVec)
             }
         }
     }
+}
+
+// Creates a 3D normalized RGB histogram from the src image (with 8 bins per color channel)
+// Adds another 3D normalized RGB histogram for the top and bottom halves of the image
+// Builds a feature vector from the histograms (8x8x8 x 3 histograms)
+// Args: src     - cv::Mat image
+//       featVec - feature vector to be filled
+void extract_multihist_features(cv::Mat &src, std::vector<float> &featVec)
+{
+    // histogram of entire image
+    extract_histogram_rgb_features(src, featVec);
+
+    // top half
+    cv::Rect topRect(0, 0, src.cols, src.rows / 2);
+    cv::Mat top = src(topRect);
+    extract_histogram_rgb_features(top, featVec);
+
+    // bottom half
+    cv::Rect botRect(0, src.rows / 2, src.cols, src.rows / 2);
+    cv::Mat bot = src(botRect);
+    extract_histogram_rgb_features(bot, featVec);
 }
