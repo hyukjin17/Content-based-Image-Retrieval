@@ -13,6 +13,12 @@
 #include "features.hpp"
 #include "csv_util.h"
 
+// available distance metric types
+enum MetricType { 
+    SSD, 
+    INTERSECTION 
+};
+
 // Calculates the histogram intersection distance betweeen the 2 vectors (normalized histogram)
 // Returns a float: 1 - sum of min(a[i], b[i])
 float hist_intersection(std::vector<float> &featVec, std::vector<float> &data)
@@ -45,20 +51,18 @@ float ssd(std::vector<float> &featVec, std::vector<float> &data)
 
 // Applies the chosen distance metric to calculate the distance between 2 feature vectors
 // Returns the distance as a float
-float apply_metric(int metric, std::vector<float> &featVec, std::vector<float> &data)
+float apply_metric(MetricType metric, std::vector<float> &featVec, std::vector<float> &data)
 {
     float dist;
 
     switch (metric)
     {
-    case 1:
+    case SSD:
         dist = ssd(featVec, data);
         break;
-    case 2:
+    case INTERSECTION:
         dist = hist_intersection(featVec, data);
         break;
-    default:
-        dist = ssd(featVec, data);
     }
 
     return dist;
@@ -72,10 +76,11 @@ float apply_metric(int metric, std::vector<float> &featVec, std::vector<float> &
     Args:
         - csv: csv database filename
         - featVec: feature vector to be filled
+        - img_filepath: image file path
         - metric: int value corresponding to a distance metric
         - N: number of closest matches to be returned
 */
-void print_closest_match(char *csv, std::vector<float> &featVec, int metric, int N)
+void print_closest_match(char *csv, std::vector<float> &featVec, char *img_filepath, MetricType metric, int N)
 {
     std::vector<char *> filenames;
     std::vector<std::vector<float>> data;
@@ -96,8 +101,10 @@ void print_closest_match(char *csv, std::vector<float> &featVec, int metric, int
     // sort the results by ascending distance
     std::sort(results.begin(), results.end());
 
-    for (int i = 1; i < N + 1; i++)
+    for (int i = 0; i < N + 1; i++)
     {
+        if (strstr(img_filepath, results[i].second) != NULL)
+            continue;
         // .second is the filename, .first is the distance
         printf("Image: %s (Dist: %.4f)\n", results[i].second, results[i].first);
     }
@@ -113,9 +120,9 @@ void print_closest_match(char *csv, std::vector<float> &featVec, int metric, int
         - src: cv::Mat image used for feature extraction
         - featVec: feature vector to be filled
 */
-int set_feature_mode(char *feature_mode, char *csv, cv::Mat &src, std::vector<float> &featVec)
+MetricType set_feature_mode(char *feature_mode, char *csv, cv::Mat &src, std::vector<float> &featVec)
 {
-    int dist_metric;
+    MetricType dist_metric;
 
     // find the csv filename based on the requested comparison method
     // and extract the feature vector from the image
@@ -123,19 +130,19 @@ int set_feature_mode(char *feature_mode, char *csv, cv::Mat &src, std::vector<fl
     {
         strcpy(csv, "features_baseline.csv");
         extract_baseline_features(src, featVec);
-        dist_metric = 1;
+        dist_metric = SSD;
     }
     else if (strcmp(feature_mode, "hist") == 0)
     {
         strcpy(csv, "features_histogram.csv");
         extract_histogram_features(src, featVec);
-        dist_metric = 2;
+        dist_metric = INTERSECTION;
     }
     else if (strcmp(feature_mode, "hist2") == 0)
     {
         strcpy(csv, "features_histogram_rgb.csv");
         extract_histogram_rgb_features(src, featVec);
-        dist_metric = 2;
+        dist_metric = INTERSECTION;
     }
     else
     {
@@ -185,9 +192,9 @@ int main(int argc, char *argv[])
     }
 
     // extracts the feature vector from the image and returns an integer value corresponding to the distance metric to be used
-    int metric = set_feature_mode(feature_mode, csv, src, featVec);
+    MetricType metric = set_feature_mode(feature_mode, csv, src, featVec);
     // compares the image to every image in the database and prints N closest matches
-    print_closest_match(csv, featVec, metric, N);
+    print_closest_match(csv, featVec, img_filepath, metric, N);
 
     return (0);
 }
