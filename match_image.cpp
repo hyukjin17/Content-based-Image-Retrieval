@@ -14,15 +14,39 @@
 #include "csv_util.h"
 
 // available distance metric types
-enum MetricType { 
-    SSD, 
-    INTERSECTION 
+enum MetricType
+{
+    SSD,
+    INTERSECTION,
+    MULTI_INTERSECTION
 };
+
+float multihist_intersection(std::vector<float> &featVec, std::vector<float> &data)
+{
+    if (featVec.size() != data.size()) {
+        printf("Error: Vector size mismatch! Image: %lu vs Database: %lu\n", featVec.size(), data.size());
+        exit(-1);
+    }
+
+    float sum = 0;
+
+    for (int i = 0; i < featVec.size(); i++)
+    {
+        sum += std::min(featVec[i], data[i]);
+    }
+
+    return 1.0f - (sum / 3.0f);
+}
 
 // Calculates the histogram intersection distance betweeen the 2 vectors (normalized histogram)
 // Returns a float: 1 - sum of min(a[i], b[i])
 float hist_intersection(std::vector<float> &featVec, std::vector<float> &data)
 {
+    if (featVec.size() != data.size()) {
+        printf("Error: Vector size mismatch! Image: %lu vs Database: %lu\n", featVec.size(), data.size());
+        exit(-1);
+    }
+
     float sum = 0;
 
     for (int i = 0; i < featVec.size(); i++)
@@ -37,6 +61,11 @@ float hist_intersection(std::vector<float> &featVec, std::vector<float> &data)
 // Returns a float: sum of (a[i] - b[i])^2
 float ssd(std::vector<float> &featVec, std::vector<float> &data)
 {
+    if (featVec.size() != data.size()) {
+        printf("Error: Vector size mismatch! Image: %lu vs Database: %lu\n", featVec.size(), data.size());
+        exit(-1);
+    }
+    
     float dist = 0;
     float diff;
 
@@ -63,6 +92,9 @@ float apply_metric(MetricType metric, std::vector<float> &featVec, std::vector<f
     case INTERSECTION:
         dist = hist_intersection(featVec, data);
         break;
+    case MULTI_INTERSECTION:
+        dist = multihist_intersection(featVec, data);
+        break;
     }
 
     return dist;
@@ -71,7 +103,7 @@ float apply_metric(MetricType metric, std::vector<float> &featVec, std::vector<f
 /*
     Extracts the feature vectors from the csv database and compares every entry to the given feature vector
     Distance metric is chosen based on metric integer
-    Prints out N closest matches
+    Prints out N closest matches and opens those images
 
     Args:
         - csv: csv database filename
@@ -86,6 +118,11 @@ void print_closest_match(char *csv, std::vector<float> &featVec, char *img_filep
     std::vector<std::vector<float>> data;
     float distance;
     std::vector<std::pair<float, char *>> results;
+    char filepath[256];
+    char *last_slash;
+    int dir_len;
+    char dir[256];
+    cv::Mat temp;
 
     if (read_image_data_csv(csv, filenames, data) != 0)
     {
@@ -101,13 +138,39 @@ void print_closest_match(char *csv, std::vector<float> &featVec, char *img_filep
     // sort the results by ascending distance
     std::sort(results.begin(), results.end());
 
+    // grab directory name from the img_filepath
+    last_slash = strrchr(img_filepath, '/'); // find the index of the last slash
+    dir_len = last_slash - img_filepath + 1; // find the length of directory name
+    strncpy(dir, img_filepath, dir_len);     // copy everything up to the last slash
+    dir[dir_len] = '\0';                     // null terminate
+    int move_window = 0;
+
     for (int i = 0; i < N + 1; i++)
     {
+        // reconstruct the filepath for each image for viewing
+        strcpy(filepath, dir);
+        strcat(filepath, results[i].second);
+
         if (strstr(img_filepath, results[i].second) != NULL)
+        {
+            cv::imshow(filepath, cv::imread(filepath));
+            cv::moveWindow(filepath, 0, 0);
             continue;
+        }
+
         // .second is the filename, .first is the distance
+        temp = cv::imread(filepath);
+        cv::imshow(filepath, temp);
+        // move the image windows to stagger them for easier viewing
+        move_window += temp.cols / 2;
+        cv::moveWindow(filepath, move_window, 0);
         printf("Image: %s (Dist: %.4f)\n", results[i].second, results[i].first);
     }
+
+    // wait for any key press and close all windows
+    printf("Press any key to close all windows\n");
+    cv::waitKey(0);
+    cv::destroyAllWindows();
 }
 
 /*
@@ -143,6 +206,12 @@ MetricType set_feature_mode(char *feature_mode, char *csv, cv::Mat &src, std::ve
         strcpy(csv, "features_histogram_rgb.csv");
         extract_histogram_rgb_features(src, featVec);
         dist_metric = INTERSECTION;
+    }
+    else if (strcmp(feature_mode, "multihist") == 0)
+    {
+        strcpy(csv, "features_multihistogram.csv");
+        extract_multihist_features(src, featVec);
+        dist_metric = MULTI_INTERSECTION;
     }
     else
     {
