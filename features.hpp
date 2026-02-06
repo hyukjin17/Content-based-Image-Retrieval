@@ -12,6 +12,16 @@
 //       featVec - feature vector to be filled
 void extract_baseline_features(cv::Mat &src, std::vector<float> &featVec);
 
+// Creates a 2D normalized rg chromaticity histogram from the src image (with 16 bins per color channel)
+// Builds a feature vector from the histogram (16x16 values)
+// Args: src     - cv::Mat image
+//       featVec - feature vector to be filled
 void extract_histogram_features(cv::Mat &src, std::vector<float> &featVec);
+
+// Creates a 3D normalized RGB histogram from the src image (with 8 bins per color channel)
+// Builds a feature vector from the histogram (8x8x8 values)
+// Args: src     - cv::Mat image
+//       featVec - feature vector to be filled
+void extract_histogram_rgb_features(cv::Mat &src, std::vector<float> &featVec);
 
 #endif
