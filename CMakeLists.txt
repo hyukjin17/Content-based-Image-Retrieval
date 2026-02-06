@@ -6,7 +6,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(OpenCV REQUIRED)
 
-add_executable(cbir readfiles.cpp features.cpp csv_util.cpp)
+add_executable(read readfiles.cpp features.cpp csv_util.cpp)
+
+target_include_directories(read PRIVATE ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(read PRIVATE ${OpenCV_LIBS})
+
+add_executable(cbir match_image.cpp features.cpp csv_util.cpp)
 
 target_include_directories(cbir PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(cbir PRIVATE ${OpenCV_LIBS})
