@@ -66,7 +66,7 @@ float apply_metric(int metric, std::vector<float> &featVec, std::vector<float> &
 
 /*
     Extracts the feature vectors from the csv database and compares every entry to the given feature vector
-    Distance metric is chosen based on metric value
+    Distance metric is chosen based on metric integer
     Prints out N closest matches
 
     Args:
@@ -108,30 +108,30 @@ void print_closest_match(char *csv, std::vector<float> &featVec, int metric, int
     and returns an integer value corresponding to a distance metric
 
     Args:
-        - comp_method: user defined comparison method as a string
-        - csv: csv filename to be assigned based on the comp_method
+        - feature_mode: user defined comparison method as a string
+        - csv: csv filename to be assigned based on the feature_mode
         - src: cv::Mat image used for feature extraction
         - featVec: feature vector to be filled
 */
-int set_comp_method(char *comp_method, char *csv, cv::Mat &src, std::vector<float> &featVec)
+int set_feature_mode(char *feature_mode, char *csv, cv::Mat &src, std::vector<float> &featVec)
 {
     int dist_metric;
 
     // find the csv filename based on the requested comparison method
     // and extract the feature vector from the image
-    if (strcmp(comp_method, "baseline") == 0)
+    if (strcmp(feature_mode, "baseline") == 0)
     {
         strcpy(csv, "features_baseline.csv");
         extract_baseline_features(src, featVec);
         dist_metric = 1;
     }
-    else if (strcmp(comp_method, "hist") == 0)
+    else if (strcmp(feature_mode, "hist") == 0)
     {
         strcpy(csv, "features_histogram.csv");
         extract_histogram_features(src, featVec);
         dist_metric = 2;
     }
-    else if (strcmp(comp_method, "hist2") == 0)
+    else if (strcmp(feature_mode, "hist2") == 0)
     {
         strcpy(csv, "features_histogram_rgb.csv");
         extract_histogram_rgb_features(src, featVec);
@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
 {
     std::vector<float> featVec; // flattened feature vector
     char img_filepath[256];
-    char comp_method[256];
+    char feature_mode[256];
     char csv[256];
     int N;
     cv::Mat src;
@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
 
     // get the arguments
     strcpy(img_filepath, argv[1]);
-    strcpy(comp_method, argv[2]);
+    strcpy(feature_mode, argv[2]);
     N = atoi(argv[3]);
 
     // read the image
@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
     }
 
     // extracts the feature vector from the image and returns an integer value corresponding to the distance metric to be used
-    int metric = set_comp_method(comp_method, csv, src, featVec);
+    int metric = set_feature_mode(feature_mode, csv, src, featVec);
     // compares the image to every image in the database and prints N closest matches
     print_closest_match(csv, featVec, metric, N);
 
