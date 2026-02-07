@@ -143,8 +143,8 @@ void extract_histogram_rgb_features(cv::Mat &src, std::vector<float> &featVec)
 }
 
 // Creates a 3D normalized RGB histogram from the src image (with 8 bins per color channel)
-// Adds another 3D normalized RGB histogram for the top and bottom halves of the image
-// Builds a feature vector from the histograms (8x8x8 x 3 histograms)
+// Adds 3 more 3D normalized RGB histograms for the top and bottom halves and the center of the image
+// Builds a feature vector from the histograms (8x8x8 x 4 histograms)
 // Args: src     - cv::Mat image
 //       featVec - feature vector to be filled
 void extract_multihist_features(cv::Mat &src, std::vector<float> &featVec)
@@ -161,4 +161,167 @@ void extract_multihist_features(cv::Mat &src, std::vector<float> &featVec)
     cv::Rect botRect(0, src.rows / 2, src.cols, src.rows / 2);
     cv::Mat bot = src(botRect);
     extract_histogram_rgb_features(bot, featVec);
+
+    // find the center of image
+    int cx = src.cols / 2;
+    int cy = src.rows / 2;
+    // define a rectangle in the center as the feature (1/4 of image sidelength)
+    cv::Rect centerRect(cx - src.cols / 8, cy - src.rows / 8, src.cols / 4, src.rows / 4);
+    cv::Mat center = src(centerRect);
+    extract_histogram_rgb_features(center, featVec);
+}
+
+// 3x3 Sobel X filter as separable 1x3 filters (detects vertical edges)
+// Args: color src image     Return: 16-bit signed short dst image
+int sobelX3x3(cv::Mat &src, cv::Mat &dst)
+{
+    static cv::Mat temp;
+    // makes an intermediate temp matrix
+    temp = cv::Mat::zeros(src.size(), CV_16SC3);
+
+    // makes a dst matrix for the final image
+    dst = cv::Mat::zeros(src.size(), CV_16SC3);
+
+    // first pass (horizontal filter)
+    for (int i = 0; i < dst.rows; i++)
+    {
+        cv::Vec3b *srcPtr = src.ptr<cv::Vec3b>(i);   // gets the row pointer from the src image
+        cv::Vec3s *tempPtr = temp.ptr<cv::Vec3s>(i); // gets the row pointer from the temp image
+        for (int j = 1; j < dst.cols - 1; j++)
+        {
+            // loop over RGB color channels
+            for (int k = 0; k < 3; k++)
+            {
+                // sum of the horizontally neighboring pixel values from the original src image
+                // multiply the left pixel by -1 and the right pixel by 1 (middle pixel is already 0)
+                // filterX = {-1, 0, 1}
+                tempPtr[j][k] = -1 * srcPtr[j - 1][k] + srcPtr[j + 1][k]; // update the temp image
+            }
+        }
+    }
+
+    // vertical part of Sobel X filter
+    int filterY[3] = {1, 2, 1};
+    // second pass (vertical filter) using the generated temp image
+    for (int i = 1; i < dst.rows - 1; i++)
+    {
+        // gets the 3 row pointers from the temp image
+        cv::Vec3s *p1 = temp.ptr<cv::Vec3s>(i - 1);
+        cv::Vec3s *p2 = temp.ptr<cv::Vec3s>(i);
+        cv::Vec3s *p3 = temp.ptr<cv::Vec3s>(i + 1);
+
+        cv::Vec3s *dstPtr = dst.ptr<cv::Vec3s>(i);
+        for (int j = 0; j < dst.cols; j++)
+        {
+            // loop over RGB color channels
+            for (int k = 0; k < 3; k++)
+            {
+                // sum of the vertically neighboring pixel values from each of the 3 rows in the temp image (multiplied by filterY)
+                // divide by the sum of values in the blur vector to normalize and multiply by 2 to make the edges brighter
+                dstPtr[j][k] = (p1[j][k] * filterY[0] + p2[j][k] * filterY[1] + p3[j][k] * filterY[2]) / 2;
+            }
+        }
+    }
+
+    return (0);
+}
+
+// 3x3 Sobel Y filter as separable 1x3 filters (detects horizontal edges)
+// Args: color src image     Return: 16-bit signed short dst image
+int sobelY3x3(cv::Mat &src, cv::Mat &dst)
+{
+    static cv::Mat temp;
+    // makes an intermediate temp matrix
+    temp = cv::Mat::zeros(src.size(), CV_16SC3);
+
+    // makes a dst matrix for the final image
+    dst = cv::Mat::zeros(src.size(), CV_16SC3);
+
+    // horizontal part of Sobel Y filter
+    int filterX[3] = {1, 2, 1};
+
+    // first pass (horizontal filter)
+    for (int i = 0; i < dst.rows; i++)
+    {
+        cv::Vec3b *srcPtr = src.ptr<cv::Vec3b>(i);   // gets the row pointer from the src image
+        cv::Vec3s *tempPtr = temp.ptr<cv::Vec3s>(i); // gets the row pointer from the temp image
+        for (int j = 1; j < dst.cols - 1; j++)
+        {
+            // loop over RGB color channels
+            for (int k = 0; k < 3; k++)
+            {
+                // sum of the horizontally neighboring pixel values from the original src image (multiplied by filterX)
+                // divide by the sum of values in the blur vector to normalize
+                tempPtr[j][k] = (srcPtr[j - 1][k] * filterX[0] + srcPtr[j][k] * filterX[1] + srcPtr[j + 1][k] * filterX[2]) / 4;
+            }
+        }
+    }
+
+    // vertical part of Sobel Y filter
+    int filterY[3] = {1, 0, -1};
+    // second pass (vertical filter) using the generated temp image
+    for (int i = 1; i < dst.rows - 1; i++)
+    {
+        // gets the 3 row pointers from the temp image
+        cv::Vec3s *p1 = temp.ptr<cv::Vec3s>(i - 1);
+        cv::Vec3s *p2 = temp.ptr<cv::Vec3s>(i);
+        cv::Vec3s *p3 = temp.ptr<cv::Vec3s>(i + 1);
+
+        cv::Vec3s *dstPtr = dst.ptr<cv::Vec3s>(i);
+        for (int j = 0; j < dst.cols; j++)
+        {
+            // loop over RGB color channels
+            for (int k = 0; k < 3; k++)
+            {
+                // sum of the vertically neighboring pixel values from each of the 3 rows in the temp image (multiplied by filterY)
+                // multiply by 2 to make the edges brighter
+                dstPtr[j][k] = (p1[j][k] * filterY[0] + p2[j][k] * filterY[1] + p3[j][k] * filterY[2]) * 2;
+            }
+        }
+    }
+
+    return (0);
+}
+
+// Generates a gradient magnitude image from the X and Y Sobel images
+// Args: 16-bit signed short Sobel X and Sobel Y images     Return: 8-bit uchar dst image
+int magnitude(cv::Mat &sx, cv::Mat &sy, cv::Mat &dst)
+{
+    dst.create(sx.size(), CV_8UC3);
+    for (int i = 0; i < dst.rows; i++)
+    {
+        cv::Vec3s *sxPtr = sx.ptr<cv::Vec3s>(i); // row pointer for sx image
+        cv::Vec3s *syPtr = sy.ptr<cv::Vec3s>(i); // row pointer for sy image
+        cv::Vec3b *ptr = dst.ptr<cv::Vec3b>(i);  // row pointer for dst image
+        for (int j = 0; j < dst.cols; j++)
+        {
+            for (int k = 0; k < 3; k++)
+            {
+                int val = std::sqrt(sxPtr[j][k] * sxPtr[j][k] + syPtr[j][k] * syPtr[j][k]);
+                if (val > 255)
+                    val = 255; // clamp the values to 255
+                ptr[j][k] = (uchar)val;
+            }
+        }
+    }
+
+    return (0);
+}
+
+// Creates a 3D normalized RGB histogram from the src image (with 8 bins per color channel)
+// Adds another 3D normalized RGB histogram for the sobel magnitude image
+// Builds a feature vector from the histograms (8x8x8 x 2 histograms)
+// Args: src     - cv::Mat image
+//       featVec - feature vector to be filled
+void extract_sobel_features(cv::Mat &src, std::vector<float> &featVec)
+{
+    // histogram of entire image
+    extract_histogram_rgb_features(src, featVec);
+
+    // compute sobel magnitude using sobel X and Y
+    cv::Mat sX, sY, mag;
+    sobelX3x3(src, sX);
+    sobelY3x3(src, sY);
+    magnitude(sX, sY, mag);
+    extract_histogram_rgb_features(mag, featVec);
 }

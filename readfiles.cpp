@@ -38,11 +38,13 @@ void extract_feature_to_csv(cv::Mat &src, char *img_filename,
   char hist[] = "features_histogram.csv";
   char hist2[] = "features_histogram_rgb.csv";
   char multihist[] = "features_multihistogram.csv";
+  char sobel[] = "features_sobel_magnitude.csv";
 
   bool do_baseline = (strcmp(feature_mode, "baseline") == 0 || strcmp(feature_mode, "all") == 0);
   bool do_hist = (strcmp(feature_mode, "hist") == 0 || strcmp(feature_mode, "all") == 0);
   bool do_hist_rgb = (strcmp(feature_mode, "hist2") == 0 || strcmp(feature_mode, "all") == 0);
   bool do_multihist = (strcmp(feature_mode, "multihist") == 0 || strcmp(feature_mode, "all") == 0);
+  bool do_sobel = (strcmp(feature_mode, "sobel") == 0 || strcmp(feature_mode, "all") == 0);
 
   bool do_nothing = true;
 
@@ -79,9 +81,18 @@ void extract_feature_to_csv(cv::Mat &src, char *img_filename,
     featVec.clear(); // clear the feature vector before reusing it
     do_nothing = false;
   }
+    if (do_sobel)
+  {
+    // extract the sobel magnitude texture data into a csv file
+    extract_sobel_features(src, featVec);
+    append_image_data_csv(sobel, img_filename, featVec, reset_file);
+    featVec.clear(); // clear the feature vector before reusing it
+    do_nothing = false;
+  }
   if (do_nothing) // if nothing happened
   {
-    printf("Invalid feature extraction method\nPlease use one of: baseline, hist, hist2, multihist, texture, dnn, all\n");
+    printf("Invalid feature extraction method\n");
+    printf("Please use one of: baseline, hist, hist2, multihist, sobel, texture, dnn, all\n");
     exit(-1);
   }
 }
