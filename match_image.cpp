@@ -18,12 +18,45 @@ enum MetricType
 {
     SSD,
     INTERSECTION,
-    MULTI_INTERSECTION
+    MULTI_INTERSECTION,
+    SOBEL_INTERSECTION,
+    COSINE
 };
 
-float multihist_intersection(std::vector<float> &featVec, std::vector<float> &data)
+// Calculates the cosine distance between the 2 feature vectors
+// Returns a float: 1 - cos(theta) = 1 - (v1 dot v2)/(|v1||v2|)
+//                            ^ theta is the angle between the 2 vectors
+float cosine(std::vector<float> &featVec, std::vector<float> &data)
 {
-    if (featVec.size() != data.size()) {
+    if (featVec.size() != data.size())
+    {
+        printf("Error: Vector size mismatch! Image: %lu vs Database: %lu\n", featVec.size(), data.size());
+        exit(-1);
+    }
+
+    float dot = 0.0f;         // dot product
+    float featVec_mag = 0.0f; // magnitude of featVec
+    float data_mag = 0.0f;    // magnitude of data
+
+    for (int i = 0; i < featVec.size(); i++)
+    {
+        dot += featVec[i] * data[i];
+        featVec_mag += featVec[i] * featVec[i];
+        data_mag += data[i] * data[i];
+    }
+
+    featVec_mag = std::sqrt(featVec_mag);
+    data_mag = std::sqrt(data_mag);
+
+    return 1.0f - (dot / (featVec_mag * data_mag));
+}
+
+// Calculates the histogram intersection sum betweeen the 2 vectors (normalized histogram)
+// Returns a float: sum of min(a[i], b[i])
+float intersection(std::vector<float> &featVec, std::vector<float> &data)
+{
+    if (featVec.size() != data.size())
+    {
         printf("Error: Vector size mismatch! Image: %lu vs Database: %lu\n", featVec.size(), data.size());
         exit(-1);
     }
@@ -35,25 +68,32 @@ float multihist_intersection(std::vector<float> &featVec, std::vector<float> &da
         sum += std::min(featVec[i], data[i]);
     }
 
-    return 1.0f - (sum / 3.0f);
+    return sum;
+}
+
+// Calculates the histogram intersection distance betweeen the 2 vectors (normalized histogram)
+// Divides the sum by 2 to account for 2 histograms (whole and sobel magnitude histogram images)
+// Returns a float: 1 - sum of min(a[i], b[i]) / 2
+float sobel_intersection(std::vector<float> &featVec, std::vector<float> &data)
+{
+    float sum = intersection(featVec, data);
+    return 1.0f - (sum / 2.0f);
+}
+
+// Calculates the histogram intersection distance betweeen the 2 vectors (normalized histogram)
+// Divides the sum by 4 to account for 4 histograms (whole, top half, bottom half, center histogram images)
+// Returns a float: 1 - sum of min(a[i], b[i]) / 4
+float multihist_intersection(std::vector<float> &featVec, std::vector<float> &data)
+{
+    float sum = intersection(featVec, data);
+    return 1.0f - (sum / 4.0f);
 }
 
 // Calculates the histogram intersection distance betweeen the 2 vectors (normalized histogram)
 // Returns a float: 1 - sum of min(a[i], b[i])
 float hist_intersection(std::vector<float> &featVec, std::vector<float> &data)
 {
-    if (featVec.size() != data.size()) {
-        printf("Error: Vector size mismatch! Image: %lu vs Database: %lu\n", featVec.size(), data.size());
-        exit(-1);
-    }
-
-    float sum = 0;
-
-    for (int i = 0; i < featVec.size(); i++)
-    {
-        sum += std::min(featVec[i], data[i]);
-    }
-
+    float sum = intersection(featVec, data);
     return 1.0f - sum;
 }
 
@@ -61,11 +101,12 @@ float hist_intersection(std::vector<float> &featVec, std::vector<float> &data)
 // Returns a float: sum of (a[i] - b[i])^2
 float ssd(std::vector<float> &featVec, std::vector<float> &data)
 {
-    if (featVec.size() != data.size()) {
+    if (featVec.size() != data.size())
+    {
         printf("Error: Vector size mismatch! Image: %lu vs Database: %lu\n", featVec.size(), data.size());
         exit(-1);
     }
-    
+
     float dist = 0;
     float diff;
 
@@ -95,6 +136,9 @@ float apply_metric(MetricType metric, std::vector<float> &featVec, std::vector<f
     case MULTI_INTERSECTION:
         dist = multihist_intersection(featVec, data);
         break;
+    case SOBEL_INTERSECTION:
+        dist = sobel_intersection(featVec, data);
+        break;
     }
 
     return dist;
@@ -111,8 +155,10 @@ float apply_metric(MetricType metric, std::vector<float> &featVec, std::vector<f
         - img_filepath: image file path
         - metric: int value corresponding to a distance metric
         - N: number of closest matches to be returned
+        - ascending: whether to sort the results in ascending or descending order (best or worst match)
 */
-void print_closest_match(char *csv, std::vector<float> &featVec, char *img_filepath, MetricType metric, int N)
+void print_closest_match(char *csv, std::vector<float> &featVec, char *img_filepath,
+                         MetricType metric, int N, bool ascending = true)
 {
     std::vector<char *> filenames;
     std::vector<std::vector<float>> data;
@@ -123,6 +169,7 @@ void print_closest_match(char *csv, std::vector<float> &featVec, char *img_filep
     int dir_len;
     char dir[256];
     cv::Mat temp;
+    bool skip_first = false;
 
     if (read_image_data_csv(csv, filenames, data) != 0)
     {
@@ -135,8 +182,11 @@ void print_closest_match(char *csv, std::vector<float> &featVec, char *img_filep
         distance = apply_metric(metric, featVec, data[i]);
         results.push_back({distance, filenames[i]});
     }
-    // sort the results by ascending distance
-    std::sort(results.begin(), results.end());
+    // sort the results
+    if (ascending)
+        std::sort(results.begin(), results.end());
+    else
+        std::sort(results.begin(), results.end(), std::greater<>());
 
     // grab directory name from the img_filepath
     last_slash = strrchr(img_filepath, '/'); // find the index of the last slash
@@ -145,16 +195,23 @@ void print_closest_match(char *csv, std::vector<float> &featVec, char *img_filep
     dir[dir_len] = '\0';                     // null terminate
     int move_window = 0;
 
+    cv::imshow(img_filepath, cv::imread(img_filepath));
+    cv::moveWindow(img_filepath, 0, 0);
+
     for (int i = 0; i < N + 1; i++)
     {
+        // if first match was not skipped, only print N matches
+        if (!skip_first && i == N)
+            continue;
+
         // reconstruct the filepath for each image for viewing
         strcpy(filepath, dir);
         strcat(filepath, results[i].second);
 
+        // skip first match if the image is identical to the given image
         if (strstr(img_filepath, results[i].second) != NULL)
         {
-            cv::imshow(filepath, cv::imread(filepath));
-            cv::moveWindow(filepath, 0, 0);
+            skip_first = true;
             continue;
         }
 
@@ -213,12 +270,18 @@ MetricType set_feature_mode(char *feature_mode, char *csv, cv::Mat &src, std::ve
         extract_multihist_features(src, featVec);
         dist_metric = MULTI_INTERSECTION;
     }
+    else if (strcmp(feature_mode, "sobel") == 0)
+    {
+        strcpy(csv, "features_sobel_magnitude.csv");
+        extract_sobel_features(src, featVec);
+        dist_metric = SOBEL_INTERSECTION;
+    }
     else
     {
-        printf("Invalid comparison method\nPlease use one of: baseline, hist, hist2, multihist, texture, dnn\n");
+        printf("Invalid comparison method\n");
+        printf("Please use one of: baseline, hist, hist2, multihist, sobel, texture, dnn\n");
         exit(-1);
     }
-
     return dist_metric;
 }
 
@@ -239,6 +302,7 @@ int main(int argc, char *argv[])
     char csv[256];
     int N;
     cv::Mat src;
+    bool ascending = true;
 
     // check for sufficient arguments
     if (argc < 4)
@@ -251,6 +315,8 @@ int main(int argc, char *argv[])
     strcpy(img_filepath, argv[1]);
     strcpy(feature_mode, argv[2]);
     N = atoi(argv[3]);
+    if (argc == 5 && strcmp("bot", argv[4]) == 0)
+        ascending = false;
 
     // read the image
     src = cv::imread(img_filepath);
@@ -263,7 +329,7 @@ int main(int argc, char *argv[])
     // extracts the feature vector from the image and returns an integer value corresponding to the distance metric to be used
     MetricType metric = set_feature_mode(feature_mode, csv, src, featVec);
     // compares the image to every image in the database and prints N closest matches
-    print_closest_match(csv, featVec, img_filepath, metric, N);
+    print_closest_match(csv, featVec, img_filepath, metric, N, ascending);
 
     return (0);
 }
