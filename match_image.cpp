@@ -139,9 +139,24 @@ float apply_metric(MetricType metric, std::vector<float> &featVec, std::vector<f
     case SOBEL_INTERSECTION:
         dist = sobel_intersection(featVec, data);
         break;
+    case COSINE:
+        dist = cosine(featVec, data);
+        break;
     }
 
     return dist;
+}
+
+void build_dnn_vector(std::vector<float> &featVec, char *filename,
+                      std::vector<char *> &filenames, std::vector<std::vector<float>> &data)
+{
+    for (int i = 0; i < filenames.size(); i++)
+    {
+        if (strcmp(filename, filenames[i]) == 0)
+        {
+            featVec = data[i];
+        }
+    }
 }
 
 /*
@@ -177,27 +192,39 @@ void print_closest_match(char *csv, std::vector<float> &featVec, char *img_filep
         exit(-1);
     }
 
+    // grab directory name from the img_filepath
+    last_slash = strrchr(img_filepath, '/'); // find the index of the last slash
+    dir_len = last_slash - img_filepath + 1; // find the length of directory name
+    strncpy(dir, img_filepath, dir_len);     // copy everything up to the last slash
+    dir[dir_len] = '\0';                     // null terminate
+    int move_window = 0;                     // offset to move the subsequent image window
+
+    if (featVec.empty())
+    {
+        // strip the filename from the img_filepath
+        char *filename = last_slash + 1;
+        // build the feature vector from the ResNet18 csv file
+        build_dnn_vector(featVec, filename, filenames, data);
+    }
+
+    // build the vector of {distance, filename} pairs
     for (int i = 0; i < filenames.size(); i++)
     {
         distance = apply_metric(metric, featVec, data[i]);
         results.push_back({distance, filenames[i]});
     }
+
     // sort the results
     if (ascending)
         std::sort(results.begin(), results.end());
     else
         std::sort(results.begin(), results.end(), std::greater<>());
 
-    // grab directory name from the img_filepath
-    last_slash = strrchr(img_filepath, '/'); // find the index of the last slash
-    dir_len = last_slash - img_filepath + 1; // find the length of directory name
-    strncpy(dir, img_filepath, dir_len);     // copy everything up to the last slash
-    dir[dir_len] = '\0';                     // null terminate
-    int move_window = 0;
-
+    // display the original image
     cv::imshow(img_filepath, cv::imread(img_filepath));
     cv::moveWindow(img_filepath, 0, 0);
 
+    // loop through N+1 closest matches
     for (int i = 0; i < N + 1; i++)
     {
         // if first match was not skipped, only print N matches
@@ -215,12 +242,12 @@ void print_closest_match(char *csv, std::vector<float> &featVec, char *img_filep
             continue;
         }
 
-        // .second is the filename, .first is the distance
         temp = cv::imread(filepath);
         cv::imshow(filepath, temp);
         // move the image windows to stagger them for easier viewing
         move_window += temp.cols / 2;
         cv::moveWindow(filepath, move_window, 0);
+        // .second is the filename, .first is the distance
         printf("Image: %s (Dist: %.4f)\n", results[i].second, results[i].first);
     }
 
@@ -275,6 +302,11 @@ MetricType set_feature_mode(char *feature_mode, char *csv, cv::Mat &src, std::ve
         strcpy(csv, "features_sobel_magnitude.csv");
         extract_sobel_features(src, featVec);
         dist_metric = SOBEL_INTERSECTION;
+    }
+    else if (strcmp(feature_mode, "dnn") == 0)
+    {
+        strcpy(csv, "ResNet18_olym.csv");
+        dist_metric = COSINE;
     }
     else
     {
