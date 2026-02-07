@@ -18,8 +18,8 @@ enum MetricType
 {
     SSD,
     INTERSECTION,
-    MULTI_INTERSECTION,
-    SOBEL_INTERSECTION,
+    FOUR_HIST_INTERSECTION,
+    TWO_HIST_INTERSECTION,
     COSINE
 };
 
@@ -51,9 +51,10 @@ float cosine(std::vector<float> &featVec, std::vector<float> &data)
     return 1.0f - (dot / (featVec_mag * data_mag));
 }
 
-// Calculates the histogram intersection sum betweeen the 2 vectors (normalized histogram)
-// Returns a float: sum of min(a[i], b[i])
-float intersection(std::vector<float> &featVec, std::vector<float> &data)
+// Calculates the histogram intersection distance betweeen the 2 vectors (normalized histogram)
+// Divides the sum by the divisor to account for N number of histograms
+// Returns a float: 1 - sum of min(a[i], b[i]) / divisor
+float intersection(std::vector<float> &featVec, std::vector<float> &data, float divisor)
 {
     if (featVec.size() != data.size())
     {
@@ -68,33 +69,7 @@ float intersection(std::vector<float> &featVec, std::vector<float> &data)
         sum += std::min(featVec[i], data[i]);
     }
 
-    return sum;
-}
-
-// Calculates the histogram intersection distance betweeen the 2 vectors (normalized histogram)
-// Divides the sum by 2 to account for 2 histograms (whole and sobel magnitude histogram images)
-// Returns a float: 1 - sum of min(a[i], b[i]) / 2
-float sobel_intersection(std::vector<float> &featVec, std::vector<float> &data)
-{
-    float sum = intersection(featVec, data);
-    return 1.0f - (sum / 2.0f);
-}
-
-// Calculates the histogram intersection distance betweeen the 2 vectors (normalized histogram)
-// Divides the sum by 4 to account for 4 histograms (whole, top half, bottom half, center histogram images)
-// Returns a float: 1 - sum of min(a[i], b[i]) / 4
-float multihist_intersection(std::vector<float> &featVec, std::vector<float> &data)
-{
-    float sum = intersection(featVec, data);
-    return 1.0f - (sum / 4.0f);
-}
-
-// Calculates the histogram intersection distance betweeen the 2 vectors (normalized histogram)
-// Returns a float: 1 - sum of min(a[i], b[i])
-float hist_intersection(std::vector<float> &featVec, std::vector<float> &data)
-{
-    float sum = intersection(featVec, data);
-    return 1.0f - sum;
+    return 1.0f - (sum / divisor);
 }
 
 // Calculates the sum squared distance betweeen the 2 vectors
@@ -131,13 +106,13 @@ float apply_metric(MetricType metric, std::vector<float> &featVec, std::vector<f
         dist = ssd(featVec, data);
         break;
     case INTERSECTION:
-        dist = hist_intersection(featVec, data);
+        dist = intersection(featVec, data, 1.0f);
         break;
-    case MULTI_INTERSECTION:
-        dist = multihist_intersection(featVec, data);
+    case FOUR_HIST_INTERSECTION:
+        dist = intersection(featVec, data, 4.0f);
         break;
-    case SOBEL_INTERSECTION:
-        dist = sobel_intersection(featVec, data);
+    case TWO_HIST_INTERSECTION:
+        dist = intersection(featVec, data, 2.0f);
         break;
     case COSINE:
         dist = cosine(featVec, data);
@@ -295,13 +270,13 @@ MetricType set_feature_mode(char *feature_mode, char *csv, cv::Mat &src, std::ve
     {
         strcpy(csv, "features_multihistogram.csv");
         extract_multihist_features(src, featVec);
-        dist_metric = MULTI_INTERSECTION;
+        dist_metric = FOUR_HIST_INTERSECTION;
     }
     else if (strcmp(feature_mode, "sobel") == 0)
     {
         strcpy(csv, "features_sobel_magnitude.csv");
         extract_sobel_features(src, featVec);
-        dist_metric = SOBEL_INTERSECTION;
+        dist_metric = TWO_HIST_INTERSECTION;
     }
     else if (strcmp(feature_mode, "dnn") == 0)
     {
