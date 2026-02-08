@@ -1,6 +1,7 @@
 /*
     Hyuk Jin Chung
     2/5/2026
+    
     Function signatures for feature extraction functions
 */
 
@@ -24,6 +25,13 @@ void extract_histogram_features(cv::Mat &src, std::vector<float> &featVec);
 //       featVec - feature vector to be filled
 void extract_histogram_rgb_features(cv::Mat &src, std::vector<float> &featVec);
 
+// Creates a 2D normalized hs chromaticity histogram from the src image (with 16 bins per color channel)
+// Adds another histogram of just the center piece of the image
+// Builds a feature vector from the histograms (16x16 x 2 histograms)
+// Args: src     - cv::Mat image
+//       featVec - feature vector to be filled
+void extract_histogram_hsv_features(cv::Mat &src, std::vector<float> &featVec);
+
 // Creates normalized histograms (RGB whole image and top and bottom rectangle histograms)
 // from the src image (with 8 bins per color channel)
 // Builds a feature vector from the histogram (8x8x8 x 2 histograms)
@@ -44,17 +52,5 @@ void extract_multihist_features(cv::Mat &src, std::vector<float> &featVec);
 // Args: src     - cv::Mat image
 //       featVec - feature vector to be filled
 void extract_sobel_features(cv::Mat &src, std::vector<float> &featVec);
-
-// 3x3 Sobel X filter as separable 1x3 filters (detects vertical edges)
-// Args: color src image     Return: 16-bit signed short dst image
-int sobelX3x3(cv::Mat &src, cv::Mat &dst);
-
-// 3x3 Sobel Y filter as separable 1x3 filters (detects horizontal edges)
-// Args: color src image     Return: 16-bit signed short dst image
-int sobelY3x3(cv::Mat &src, cv::Mat &dst);
-
-// Generates a gradient magnitude image from the X and Y Sobel images
-// Args: 16-bit signed short Sobel X and Sobel Y images     Return: 8-bit uchar dst image
-int magnitude(cv::Mat &sx, cv::Mat &sy, cv::Mat &dst);
 
 #endif

@@ -142,6 +142,116 @@ void extract_histogram_rgb_features(cv::Mat &src, std::vector<float> &featVec)
     }
 }
 
+// Helper method for the extract_histogram_hsv_features function
+// Creates a 2D normalized hs chromaticity histogram from the src image (with 16 bins per color channel)
+// Builds a feature vector from the histogram (16x16 hs values + black bin + gray bin)
+// Args: src     - cv::Mat image
+//       featVec - feature vector to be filled
+void extract_hsv_features(cv::Mat &src, std::vector<float> &featVec)
+{
+    const int histsize = 16;
+
+    float hist[histsize][histsize] = {0};
+    float black_bin = 0;
+    float gray_bin = 0;
+
+    // loop over all pixels
+    for (int i = 0; i < src.rows; i++)
+    {
+        cv::Vec3b *ptr = src.ptr<cv::Vec3b>(i);
+        for (int j = 0; j < src.cols; j++)
+        {
+            // get HSV values
+            float H = ptr[j][0];
+            float S = ptr[j][1];
+            float V = ptr[j][2];
+
+            // normalize s and v values between 0 and 1
+            float s_norm = S / 255.0f;
+            float v_norm = V / 255.0f;
+
+            // take out dark and pale pixels into separate bins to avoid confusing the histogram
+            // instead of trying to assign hue value to a dark pixel, take it out and count them separately
+            if (v_norm < 0.2f)
+            {
+                black_bin += 1.0f; // count dark pixels
+            }
+            else if (s_norm < 0.2f)
+            {
+                gray_bin += 1.0f; // count gray/white pixels
+            }
+            else
+            {
+                // actual valid color
+                // compute the index for h and s
+                int hindex = (int)(H / (180.0f / histsize));
+                int sindex = (int)(S / (256.0f / histsize));
+                // clamp values to (histsize - 1)
+                if (hindex >= histsize)
+                    hindex = histsize - 1;
+                if (sindex >= histsize)
+                    sindex = histsize - 1;
+                // add the normalized saturation value to the histogram
+                hist[hindex][sindex] += s_norm;
+            }
+        }
+    }
+
+    // calculate the total sum of all bins to be used for histogram normalization
+    float total_weight = black_bin + gray_bin;
+    for (int i = 0; i < histsize; i++)
+    {
+        for (int j = 0; j < histsize; j++)
+        {
+            total_weight += hist[i][j];
+        }
+    }
+
+    // convert the histogram into a feature vector  of size 258 (16x16 histogram + black bin + gray bin)
+    for (int i = 0; i < histsize; i++)
+    {
+        for (int j = 0; j < histsize; j++)
+        {
+            // flattens the 2D histogram into a single vector containing floats
+            // normalize the values by the total
+            featVec.push_back(hist[i][j] / total_weight);
+        }
+    }
+    // append the black and gray bins to the end
+    featVec.push_back(black_bin / total_weight);
+    featVec.push_back(gray_bin / total_weight);
+}
+
+// Creates a 2D normalized hs chromaticity histogram from the src image (with 16 bins per color channel)
+// Adds another histogram of just the center piece of the image
+// Builds a feature vector from the histograms ((16x16+2) x 2 histograms)
+// Args: src     - cv::Mat image
+//       featVec - feature vector to be filled
+void extract_histogram_hsv_features(cv::Mat &src, std::vector<float> &featVec)
+{
+    cv::Mat hsvImage;
+    cv::cvtColor(src, hsvImage, cv::COLOR_BGR2HSV); // creates new HSV image
+    extract_hsv_features(hsvImage, featVec);
+
+    // // top half
+    // cv::Rect topRect(0, 0, hsvImage.cols, hsvImage.rows / 2);
+    // cv::Mat top = hsvImage(topRect);
+    // extract_hsv_features(top, featVec);
+
+    // // bottom half
+    // cv::Rect botRect(0, hsvImage.rows / 2, hsvImage.cols, hsvImage.rows / 2);
+    // cv::Mat bot = hsvImage(botRect);
+    // extract_hsv_features(bot, featVec);
+
+    // find the center of image
+    int cx = hsvImage.cols / 2;
+    int cy = hsvImage.rows / 2;
+    // define a rectangle in the center as the feature (1/2 of image sidelength)
+    cv::Rect centerRect(cx - hsvImage.cols / 4, cy - hsvImage.rows / 4, hsvImage.cols / 2, hsvImage.rows / 2);
+    cv::Mat center = hsvImage(centerRect);
+    extract_hsv_features(center, featVec);
+}
+
 // Creates a 3D normalized RGB histogram from the src image (with 8 bins per color channel)
 // Adds 3 more 3D normalized RGB histograms for the top and bottom halves and the center of the image
 // Builds a feature vector from the histograms (8x8x8 x 4 histograms)
@@ -165,8 +275,8 @@ void extract_multihist_features(cv::Mat &src, std::vector<float> &featVec)
     // find the center of image
     int cx = src.cols / 2;
     int cy = src.rows / 2;
-    // define a rectangle in the center as the feature (1/4 of image sidelength)
-    cv::Rect centerRect(cx - src.cols / 8, cy - src.rows / 8, src.cols / 4, src.rows / 4);
+    // define a rectangle in the center as the feature (1/2 of image sidelength)
+    cv::Rect centerRect(cx - src.cols / 4, cy - src.rows / 4, src.cols / 2, src.rows / 2);
     cv::Mat center = src(centerRect);
     extract_histogram_rgb_features(center, featVec);
 }

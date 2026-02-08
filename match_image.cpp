@@ -189,6 +189,12 @@ void print_closest_match(char *csv, std::vector<float> &featVec, char *img_filep
         results.push_back({distance, filenames[i]});
     }
 
+    if (N > results.size() - 1)
+    {
+        printf("Index out of bounds! Please enter the number of matches up to %zu\n", results.size() - 1);
+        exit(-1);
+    }
+
     // sort the results
     if (ascending)
         std::sort(results.begin(), results.end());
@@ -278,6 +284,12 @@ MetricType set_feature_mode(char *feature_mode, char *csv, cv::Mat &src, std::ve
         extract_sobel_features(src, featVec);
         dist_metric = TWO_HIST_INTERSECTION;
     }
+    else if (strcmp(feature_mode, "hsv") == 0)
+    {
+        strcpy(csv, "features_histogram_hsv.csv");
+        extract_histogram_hsv_features(src, featVec);
+        dist_metric = TWO_HIST_INTERSECTION;
+    }
     else if (strcmp(feature_mode, "dnn") == 0)
     {
         strcpy(csv, "ResNet18_olym.csv");
@@ -286,7 +298,7 @@ MetricType set_feature_mode(char *feature_mode, char *csv, cv::Mat &src, std::ve
     else
     {
         printf("Invalid comparison method\n");
-        printf("Please use one of: baseline, hist, hist2, multihist, sobel, texture, dnn\n");
+        printf("Please use one of: baseline, hist, hist2, multihist, sobel, hsv, dnn\n");
         exit(-1);
     }
     return dist_metric;
