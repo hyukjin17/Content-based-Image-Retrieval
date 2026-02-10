@@ -174,6 +174,8 @@ float apply_metric(MetricType metric, std::vector<float> &featVec, std::vector<f
     return dist;
 }
 
+// Helper: parses the passed in filepath into directory and filename
+// Uses the last slash as the delimiter to separate the filepath
 void parse_filepath(char *img_filepath, char *dir, char *&filename)
 {
     // grab directory name from the img_filepath
