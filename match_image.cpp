@@ -20,7 +20,9 @@ enum MetricType
     INTERSECTION,
     FOUR_HIST_INTERSECTION,
     TWO_HIST_INTERSECTION,
-    COSINE
+    COSINE,
+    FACE,
+    DNN_HSV
 };
 
 // Calculates the cosine distance between the 2 feature vectors
@@ -72,6 +74,35 @@ float intersection(std::vector<float> &featVec, std::vector<float> &data, float 
     return 1.0f - (sum / divisor);
 }
 
+// Calculates the histogram intersection distance betweeen the 2 vectors (normalized histogram)
+// Divides the sum by 2 to account for 2 histograms
+// Adds a penalty (0.5) if the 2 vectors have a mismatch in the flag indicating face presence
+// (e.g. if one image contains a face and another doesn't, the distance receives a penalty)
+// Returns a float
+float face_dist(std::vector<float> &featVec, std::vector<float> &data)
+{
+    if (featVec.size() != data.size())
+    {
+        printf("Error: Vector size mismatch! Image: %lu vs Database: %lu\n", featVec.size(), data.size());
+        exit(-1);
+    }
+
+    float sum = 0;
+
+    // calculate the intersection distance up to N - 1 features
+    for (int i = 0; i < featVec.size() - 1; i++)
+    {
+        sum += std::min(featVec[i], data[i]);
+    }
+
+    float result = 1.0f - (sum / 2.0f);
+    // only check the last feature in the vector
+    if (std::fabs(data.back() - featVec.back()) > 0.1)
+        result += 0.5f; // add penalty for flag mismatch
+
+    return result;
+}
+
 // Calculates the sum squared distance betweeen the 2 vectors
 // Returns a float: sum of (a[i] - b[i])^2
 float ssd(std::vector<float> &featVec, std::vector<float> &data)
@@ -92,6 +123,21 @@ float ssd(std::vector<float> &featVec, std::vector<float> &data)
     }
 
     return dist;
+}
+
+float dnn_hsv_dist(std::vector<float> &featVec, std::vector<float> &data)
+{
+    const int dnn_feat_length = 512;
+    std::vector<float> dnn_feat(featVec.begin(), featVec.begin() + dnn_feat_length);
+    std::vector<float> dnn_data(data.begin(), data.begin() + dnn_feat_length);
+
+    std::vector<float> hsv_feat(featVec.begin() + dnn_feat_length, featVec.end());
+    std::vector<float> hsv_data(data.begin() + dnn_feat_length, data.end());
+
+    float dnn_dist = cosine(dnn_feat, dnn_data);
+    float hsv_dist = intersection(hsv_feat, hsv_data, 2.0f);
+
+    return dnn_dist + hsv_dist;
 }
 
 // Applies the chosen distance metric to calculate the distance between 2 feature vectors
@@ -117,21 +163,27 @@ float apply_metric(MetricType metric, std::vector<float> &featVec, std::vector<f
     case COSINE:
         dist = cosine(featVec, data);
         break;
+    case FACE:
+        dist = face_dist(featVec, data);
+        break;
+    case DNN_HSV:
+        dist = dnn_hsv_dist(featVec, data);
+        break;
     }
 
     return dist;
 }
 
-void build_dnn_vector(std::vector<float> &featVec, char *filename,
-                      std::vector<char *> &filenames, std::vector<std::vector<float>> &data)
+void parse_filepath(char *img_filepath, char *dir, char *&filename)
 {
-    for (int i = 0; i < filenames.size(); i++)
-    {
-        if (strcmp(filename, filenames[i]) == 0)
-        {
-            featVec = data[i];
-        }
-    }
+    // grab directory name from the img_filepath
+    char *last_slash = strrchr(img_filepath, '/'); // find the index of the last slash
+    int dir_len = last_slash - img_filepath + 1;   // find the length of directory name
+    strncpy(dir, img_filepath, dir_len);           // copy everything up to the last slash
+    dir[dir_len] = '\0';                           // null terminate
+
+    // strip the filename from the img_filepath
+    filename = last_slash + 1;
 }
 
 /*
@@ -155,9 +207,8 @@ void print_closest_match(char *csv, std::vector<float> &featVec, char *img_filep
     float distance;
     std::vector<std::pair<float, char *>> results;
     char filepath[256];
-    char *last_slash;
-    int dir_len;
     char dir[256];
+    char *filename;
     cv::Mat temp;
     bool skip_first = false;
 
@@ -167,19 +218,12 @@ void print_closest_match(char *csv, std::vector<float> &featVec, char *img_filep
         exit(-1);
     }
 
-    // grab directory name from the img_filepath
-    last_slash = strrchr(img_filepath, '/'); // find the index of the last slash
-    dir_len = last_slash - img_filepath + 1; // find the length of directory name
-    strncpy(dir, img_filepath, dir_len);     // copy everything up to the last slash
-    dir[dir_len] = '\0';                     // null terminate
-    int move_window = 0;                     // offset to move the subsequent image window
+    parse_filepath(img_filepath, dir, filename);
 
     if (featVec.empty())
     {
-        // strip the filename from the img_filepath
-        char *filename = last_slash + 1;
         // build the feature vector from the ResNet18 csv file
-        build_dnn_vector(featVec, filename, filenames, data);
+        append_dnn_vector(featVec, filename, filenames, data);
     }
 
     // build the vector of {distance, filename} pairs
@@ -204,6 +248,7 @@ void print_closest_match(char *csv, std::vector<float> &featVec, char *img_filep
     // display the original image
     cv::imshow(img_filepath, cv::imread(img_filepath));
     cv::moveWindow(img_filepath, 0, 0);
+    int move_window = 0; // offset to move the subsequent image window
 
     // loop through N+1 closest matches
     for (int i = 0; i < N + 1; i++)
@@ -248,7 +293,7 @@ void print_closest_match(char *csv, std::vector<float> &featVec, char *img_filep
         - src: cv::Mat image used for feature extraction
         - featVec: feature vector to be filled
 */
-MetricType set_feature_mode(char *feature_mode, char *csv, cv::Mat &src, std::vector<float> &featVec)
+MetricType set_feature_mode(char *feature_mode, char *csv, cv::Mat &src, std::vector<float> &featVec, char *img_filepath)
 {
     MetricType dist_metric;
 
@@ -290,15 +335,37 @@ MetricType set_feature_mode(char *feature_mode, char *csv, cv::Mat &src, std::ve
         extract_histogram_hsv_features(src, featVec);
         dist_metric = TWO_HIST_INTERSECTION;
     }
+    else if (strcmp(feature_mode, "face") == 0)
+    {
+        strcpy(csv, "features_histogram_face.csv");
+        extract_face_features(src, featVec);
+        dist_metric = FACE;
+    }
     else if (strcmp(feature_mode, "dnn") == 0)
     {
         strcpy(csv, "ResNet18_olym.csv");
         dist_metric = COSINE;
     }
+    else if (strcmp(feature_mode, "dnn_hsv") == 0)
+    {
+        strcpy(csv, "features_dnn_hsv.csv");
+
+        char dnn[] = "ResNet18_olym.csv";
+        std::vector<char *> filenames;
+        std::vector<std::vector<float>> data;
+        char dir[256];
+        char *filename;
+
+        parse_filepath(img_filepath, dir, filename);
+        read_image_data_csv(dnn, filenames, data);
+        append_dnn_vector(featVec, filename, filenames, data);
+        extract_histogram_hsv_features(src, featVec);
+        dist_metric = DNN_HSV;
+    }
     else
     {
         printf("Invalid comparison method\n");
-        printf("Please use one of: baseline, hist, hist2, multihist, sobel, hsv, dnn\n");
+        printf("Please use one of: baseline, hist, hist2, multihist, sobel, hsv, face, dnn, dnn_hsv\n");
         exit(-1);
     }
     return dist_metric;
@@ -346,7 +413,7 @@ int main(int argc, char *argv[])
     }
 
     // extracts the feature vector from the image and returns an integer value corresponding to the distance metric to be used
-    MetricType metric = set_feature_mode(feature_mode, csv, src, featVec);
+    MetricType metric = set_feature_mode(feature_mode, csv, src, featVec, img_filepath);
     // compares the image to every image in the database and prints N closest matches
     print_closest_match(csv, featVec, img_filepath, metric, N, ascending);
 
