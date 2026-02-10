@@ -63,7 +63,6 @@ To build and run this project, you need:
 3.  **Run CMake and Compile:**
     ```bash
     cmake --build build --config Release
-    make
     ```
 
 ## Usage
@@ -84,6 +83,16 @@ To build and run this project, you need:
     - <feature_method>: One of the modes listed in the Features section (e.g., hsv, dnn_hsv, multihist).
     - <num_matches>: Integer. The number of top matches to display (excluding the query image itself).
     - [bot] (Optional): If provided, sorts results in descending order (worst matches first). Useful for debugging.
+
+### Examples
+
+1.  Find top 3 matches using HSV Color Histograms:
+    ```bash
+    ./build/cbir olympus/pic.0001.jpg hsv 3
+    ```
+2.  Find top 5 matches using Face Detection:
+    ```bash
+    ./build/cbir olympus/pic.0001.jpg face 5
 
 
 ## Methodology Details
