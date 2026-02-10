@@ -27,12 +27,15 @@
     - src: cv::Mat image used for feature extraction
     - img_filename: image filename
     - featVec: feature vector to be filled
-    - feat_extraction: feature extraction method set by the user
+    - feature_mode: feature extraction method set by the user
     - reset_file: if true, open the file in 'write' mode and clear the existing contents
                   else, open the file in 'append' mode
+    - filenames: vector of filenames of DNN embeddings (used for feature vector concatenation)
+    - data: vector of DNN embeddings for each image in filenames (used for feature vector concatenation)
 */
 void extract_feature_to_csv(cv::Mat &src, char *img_filename,
-                            std::vector<float> &featVec, char *feature_mode, int &reset_file)
+                            std::vector<float> &featVec, char *feature_mode, int &reset_file,
+                            std::vector<char *> &filenames, std::vector<std::vector<float>> &data)
 {
   char baseline[] = "features_baseline.csv";
   char hist[] = "features_histogram.csv";
@@ -40,6 +43,8 @@ void extract_feature_to_csv(cv::Mat &src, char *img_filename,
   char multihist[] = "features_multihistogram.csv";
   char sobel[] = "features_sobel_magnitude.csv";
   char hsv[] = "features_histogram_hsv.csv";
+  char face[] = "features_histogram_face.csv";
+  char dnn_hsv[] = "features_dnn_hsv.csv";
 
   bool do_baseline = (strcmp(feature_mode, "baseline") == 0 || strcmp(feature_mode, "all") == 0);
   bool do_hist = (strcmp(feature_mode, "hist") == 0 || strcmp(feature_mode, "all") == 0);
@@ -47,6 +52,8 @@ void extract_feature_to_csv(cv::Mat &src, char *img_filename,
   bool do_multihist = (strcmp(feature_mode, "multihist") == 0 || strcmp(feature_mode, "all") == 0);
   bool do_sobel = (strcmp(feature_mode, "sobel") == 0 || strcmp(feature_mode, "all") == 0);
   bool do_hist_hsv = (strcmp(feature_mode, "hsv") == 0 || strcmp(feature_mode, "all") == 0);
+  bool do_hist_face = (strcmp(feature_mode, "face") == 0 || strcmp(feature_mode, "all") == 0);
+  bool do_dnn_hsv_face = (strcmp(feature_mode, "dnn_hsv") == 0 || strcmp(feature_mode, "all") == 0);
 
   bool do_nothing = true;
 
@@ -83,7 +90,7 @@ void extract_feature_to_csv(cv::Mat &src, char *img_filename,
     featVec.clear(); // clear the feature vector before reusing it
     do_nothing = false;
   }
-    if (do_sobel)
+  if (do_sobel)
   {
     // extract the sobel magnitude texture data into a csv file
     extract_sobel_features(src, featVec);
@@ -99,10 +106,28 @@ void extract_feature_to_csv(cv::Mat &src, char *img_filename,
     featVec.clear(); // clear the feature vector before reusing it
     do_nothing = false;
   }
+  if (do_hist_face)
+  {
+    // extract the hsv histogram data of the face into a csv file
+    extract_face_features(src, featVec);
+    append_image_data_csv(face, img_filename, featVec, reset_file);
+    featVec.clear(); // clear the feature vector before reusing it
+    do_nothing = false;
+  }
+  if (do_dnn_hsv_face)
+  {
+    // extract the hsv histogram data of the face into a csv file
+    // concatenate the data with the DNN feature vectors (ResNet18_olym.csv)
+    append_dnn_vector(featVec, img_filename, filenames, data);
+    extract_histogram_hsv_features(src, featVec);
+    append_image_data_csv(dnn_hsv, img_filename, featVec, reset_file);
+    featVec.clear(); // clear the feature vector before reusing it
+    do_nothing = false;
+  }
   if (do_nothing) // if nothing happened
   {
     printf("Invalid feature extraction method\n");
-    printf("Please use one of: baseline, hist, hist2, multihist, sobel, hsv, all\n");
+    printf("Please use one of: baseline, hist, hist2, multihist, sobel, hsv, face, dnn_hsv, all\n");
     exit(-1);
   }
 }
@@ -123,6 +148,10 @@ int main(int argc, char *argv[])
   cv::Mat src;
   std::vector<float> featVec; // flattened feature vector
 
+  char dnn[] = "ResNet18_olym.csv";
+  std::vector<char *> filenames;
+  std::vector<std::vector<float>> data;
+
   // check for sufficient arguments
   if (argc < 3)
   {
@@ -135,6 +164,11 @@ int main(int argc, char *argv[])
   // get the feature extraction method
   strcpy(feat_extraction, argv[2]);
   printf("Processing directory %s\n", dirname);
+
+  if (strcmp(feat_extraction, "dnn_hsv") == 0 || strcmp(feat_extraction, "all") == 0)
+  {
+    read_image_data_csv(dnn, filenames, data);
+  }
 
   // open the directory
   dirp = opendir(dirname);
@@ -167,7 +201,7 @@ int main(int argc, char *argv[])
         continue;
 
       // extracts the features and appends them to the csv
-      extract_feature_to_csv(src, img_filename, featVec, feat_extraction, reset_file);
+      extract_feature_to_csv(src, img_filename, featVec, feat_extraction, reset_file, filenames, data);
 
       reset_file = 0; // append to the file after writing the first line
     }
