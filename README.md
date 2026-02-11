@@ -20,8 +20,8 @@ The application supports the following feature extraction and matching modes:
 | **`hist`** | 2D **RG Chromaticity** Histogram (16x16 bins). Ignores intensity/lightness. | Histogram Intersection |
 | **`hist2`** | 3D **RGB** Histogram (8x8x8 bins). Captures full color distribution. | Histogram Intersection |
 | **`multihist`** | **Spatial Grid** of RGB Histograms (Top, Bottom, Center). Captures spatial layout. | Weighted Intersection |
-| **`hsv`** | 2D **HS Chromaticity** Histogram (16x16 bins). Includes specialized bins for Black/White pixels to handle achromatics. | Histogram Intersection |
-| **`sobel`** | **Texture Matching** using Gradient Magnitude (Sobel X/Y). Matches edge density. | Histogram Intersection |
+| **`hsv`** | 2D **HS Chromaticity** Histogram (16x16 bins). Includes specialized bins for Black/White pixels to handle achromatics. | Weighted Intersection |
+| **`sobel`** | **Texture Matching** using Gradient Magnitude (Sobel X/Y). Matches edge density. | Weighted Intersection |
 | **`face`** | **Face Detection** (Haar Cascade). Extracts HSV features *only* from the detected face. Falls back to center crop if no face is found. | Custom "Face" Metric (Intersection + Penalty) |
 | **`dnn`** | **Deep Learning** Embeddings (ResNet18). Uses a pre-computed 512-dimensional vector. | Cosine Distance |
 | **`dnn_hsv`** | **Multi-Modal** Matching. Combines ResNet18 embeddings (semantics) with HSV Histograms (color). | Weighted Sum (Cosine + Intersection) |
